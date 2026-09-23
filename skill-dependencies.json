@@ -1,0 +1,149 @@
+{
+  "schema_version": "1",
+  "capabilities": [
+    "hexagram-text",
+    "divination",
+    "najia-liuyao",
+    "ganzhi-wuxing"
+  ],
+  "dependencies": [
+    {
+      "id": "python-runtime",
+      "type": "runtime",
+      "required": true,
+      "auth_type": "none",
+      "capabilities": [
+        "hexagram-text",
+        "divination",
+        "najia-liuyao",
+        "ganzhi-wuxing"
+      ],
+      "checks": [
+        {
+          "id": "python-version",
+          "type": "python",
+          "required": true,
+          "target": "python",
+          "min_version": "3.10"
+        },
+        {
+          "id": "data-base",
+          "type": "file",
+          "required": true,
+          "path": "assets/data/base.json"
+        },
+        {
+          "id": "data-gua64",
+          "type": "file",
+          "required": true,
+          "path": "assets/data/gua64.json"
+        },
+        {
+          "id": "data-ganzhi",
+          "type": "file",
+          "required": true,
+          "path": "assets/data/ganzhi.json"
+        }
+      ],
+      "setup": {
+        "official_home_url": "https://www.python.org",
+        "official_docs_url": "https://docs.python.org/zh-cn/3/",
+        "download_url": "https://www.python.org/downloads/",
+        "steps": [
+          "从官方下载页获取 Python 3.10 及以上版本安装包",
+          "Windows 安装时勾选 Add python.exe to PATH",
+          "新开终端执行 python --version 确认版本",
+          "在 Skill 根目录执行 python scripts/yijing.py env 确认结论为 ready"
+        ],
+        "verify": "python scripts/yijing.py env",
+        "security": "无账号、无 Token、无 Key、无网络请求，只读取包内 assets/data 下的 JSON",
+        "verified_at": "2026-09-22",
+        "applies_to_version": "3.13.14"
+      },
+      "degradation": [
+        {
+          "capability": "hexagram-text",
+          "trigger": "Python 不可用或版本低于 3.10，或 assets/data/gua64.json 缺失",
+          "fallback": "只报告缺失项与恢复入口，不输出任何卦辞爻辞",
+          "user_input": "无需用户输入，按提示安装 Python 或重装 Skill 包",
+          "limitations": "不得凭记忆复述卦爻辞原文",
+          "evidence_label": "已验证",
+          "recovery": "安装 Python 或重装 Skill 包后重跑 env 检查",
+          "stop_condition": "缺失未解决前不产出卦爻辞内容"
+        },
+        {
+          "capability": "divination",
+          "trigger": "Python 不可用或数据文件缺失",
+          "fallback": "只报告缺失项，不产出本卦、变卦与动爻",
+          "user_input": "无需用户输入",
+          "limitations": "不得手工推算卦象代替脚本计算",
+          "evidence_label": "已验证",
+          "recovery": "恢复环境后重跑 env 检查",
+          "stop_condition": "缺失未解决前不起卦"
+        },
+        {
+          "capability": "najia-liuyao",
+          "trigger": "Python 不可用或 assets/data/base.json 缺失",
+          "fallback": "只报告缺失项，不输出纳甲干支、世应与六亲",
+          "user_input": "无需用户输入",
+          "limitations": "不得手工推算纳甲装配",
+          "evidence_label": "已验证",
+          "recovery": "恢复环境后重跑 env 检查",
+          "stop_condition": "缺失未解决前不装卦"
+        },
+        {
+          "capability": "ganzhi-wuxing",
+          "trigger": "Python 不可用或数据文件缺失",
+          "fallback": "只报告缺失项，不输出干支、纳音、五行与类象",
+          "user_input": "无需用户输入",
+          "limitations": "不得手工推算干支",
+          "evidence_label": "已验证",
+          "recovery": "恢复环境后重跑 env 检查",
+          "stop_condition": "缺失未解决前不做干支换算"
+        }
+      ]
+    }
+  ],
+  "functional_degradations": [
+    {
+      "capability": "hexagram-text",
+      "trigger": "查不到用户所给卦名，或所求条目未收录",
+      "fallback": "明确说明未收录，并提示用 list 查看全部 64 卦名称与序号",
+      "user_input": "可改为提供卦名、全称、拼音或 1-64 序号",
+      "limitations": "收录范围为通行本卦辞、彖传、象传、386 爻辞与小象传，未收录其他注本异文",
+      "evidence_label": "已验证",
+      "recovery": "更正卦名后重新查询",
+      "stop_condition": "不得用近似卦名或推测文本顶替"
+    },
+    {
+      "capability": "divination",
+      "trigger": "需要公历转农历、真太阳时或精密交节时刻",
+      "fallback": "梅花易数时间起卦改为要求用户自行提供农历年月日与时支，其余功能正常",
+      "user_input": "提供农历年月日与时支序号",
+      "limitations": "不内置农历换算表，节气按 21 世纪速算公式，误差 ±1 日",
+      "evidence_label": "已验证",
+      "recovery": "改用数字起卦，或提供农历数据后继续",
+      "stop_condition": "不得用近似农历日期冒充精确起卦"
+    },
+    {
+      "capability": "najia-liuyao",
+      "trigger": "需要旺衰、旬空、月破、用神选取、伏神飞神等进阶判断",
+      "fallback": "只输出卦宫、世应、纳甲干支与六亲装配，并说明进阶判断不在范围内",
+      "user_input": "无需用户输入",
+      "limitations": "不含月建日辰影响、六神配置与吉凶断语",
+      "evidence_label": "已验证",
+      "recovery": "需完整六爻预测请使用专业排盘工具",
+      "stop_condition": "不得用装卦结果推导吉凶结论"
+    },
+    {
+      "capability": "ganzhi-wuxing",
+      "trigger": "查询日期落在节气交节当日或前后一日",
+      "fallback": "照常输出四柱，并标注月柱可能有 ±1 日误差需人工核对",
+      "user_input": "可提供更精确时刻以便人工核对",
+      "limitations": "节气为速算值，不含真太阳时校正与晚子时换日处理；日柱为精确值",
+      "evidence_label": "部分验证",
+      "recovery": "交节日请以专业历法工具核对月柱",
+      "stop_condition": "不得把近似月柱当作精密命理排盘结果"
+    }
+  ]
+}
