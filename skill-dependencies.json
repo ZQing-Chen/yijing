@@ -4,7 +4,8 @@
     "hexagram-text",
     "divination",
     "najia-liuyao",
-    "ganzhi-wuxing"
+    "ganzhi-wuxing",
+    "date-selection"
   ],
   "dependencies": [
     {
@@ -16,7 +17,8 @@
         "hexagram-text",
         "divination",
         "najia-liuyao",
-        "ganzhi-wuxing"
+        "ganzhi-wuxing",
+        "date-selection"
       ],
       "checks": [
         {
@@ -43,6 +45,18 @@
           "type": "file",
           "required": true,
           "path": "assets/data/ganzhi.json"
+        },
+        {
+          "id": "data-bazi",
+          "type": "file",
+          "required": true,
+          "path": "assets/data/bazi.json"
+        },
+        {
+          "id": "vendor-lunar-python",
+          "type": "file",
+          "required": true,
+          "path": "assets/vendor/lunar_python/Lunar.py"
         }
       ],
       "setup": {
@@ -56,7 +70,7 @@
           "在 Skill 根目录执行 python scripts/yijing.py env 确认结论为 ready"
         ],
         "verify": "python scripts/yijing.py env",
-        "security": "无账号、无 Token、无 Key、无网络请求，只读取包内 assets/data 下的 JSON",
+        "security": "无账号、无 Token、无 Key、无网络请求，只读取包内 assets/data 下的 JSON 与 assets/vendor 下的内置历法库",
         "verified_at": "2026-09-22",
         "applies_to_version": "3.13.14"
       },
@@ -100,6 +114,16 @@
           "evidence_label": "已验证",
           "recovery": "恢复环境后重跑 env 检查",
           "stop_condition": "缺失未解决前不做干支换算"
+        },
+        {
+          "capability": "date-selection",
+          "trigger": "Python 不可用、版本低于 3.10，或 assets/vendor/lunar_python/Lunar.py 缺失",
+          "fallback": "只报告缺失项，不输出任何宜忌、吉神凶煞与候选日期",
+          "user_input": "无需用户输入，按提示安装 Python 或重装 Skill 包",
+          "limitations": "不得凭记忆复述宜忌、吉神或农历日期",
+          "evidence_label": "已验证",
+          "recovery": "安装 Python 或重装 Skill 包后重跑 env 检查",
+          "stop_condition": "缺失未解决前不产出择日结果"
         }
       ]
     }
@@ -144,6 +168,16 @@
       "evidence_label": "部分验证",
       "recovery": "交节日请以专业历法工具核对月柱",
       "stop_condition": "不得把近似月柱当作精密命理排盘结果"
+    },
+    {
+      "capability": "date-selection",
+      "trigger": "需要结合双方生辰做合婚判断，或日期临近法定节假日",
+      "fallback": "只输出通书层面的日课筛选结果，并提示择日不等于合婚、节假日须以官方公布为准",
+      "user_input": "如需合八字，请提供双方出生日期、时辰与性别，先跑 bazi 取得喜用五行",
+      "limitations": "择日只看日课，不含八字合婚、格局与用神判断；宜忌与神煞取自内置历法库 lunar-python（MIT）的通书通例，各地取舍不一；--weekday workday 仅按周一至周五判断，不识别法定节假日",
+      "evidence_label": "已验证",
+      "recovery": "先用 bazi 求出双方喜用五行，再用 --prefer-zhi 传入偏好地支重新筛选",
+      "stop_condition": "不得把日课吉日当作八字合婚结论，不得声称该日必有喜事"
     }
   ]
 }

@@ -11,7 +11,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 BASE = Path(__file__).resolve().parent.parent
 DATA = BASE / "assets" / "data"
-REQUIRED_FILES = ["base.json", "gua64.json", "ganzhi.json"]
+REQUIRED_FILES = ["base.json", "gua64.json", "ganzhi.json", "bazi.json"]
 MIN_PY = (3, 10)
 
 problems = []
@@ -38,6 +38,12 @@ deps = BASE / "skill-dependencies.json"
 if not deps.exists():
     warnings.append("缺少 skill-dependencies.json，依赖矩阵不可用")
 
+vendor = BASE / "assets" / "vendor" / "lunar_python" / "Lunar.py"
+if vendor.exists():
+    facts.append("内置历法库 lunar-python 存在")
+else:
+    warnings.append("内置历法库缺失：assets/vendor/lunar_python/，择日指令 zeri 不可用")
+
 print("## 环境检查")
 print()
 print("| 检查项 | 结果 |")
@@ -47,7 +53,7 @@ for f in facts:
 for name in REQUIRED_FILES:
     p = DATA / name
     print("| %s | %s |" % (name, "存在" if p.exists() else "缺失"))
-print("| 外部依赖 | 无（纯标准库） |")
+print("| 外部依赖 | 无（内置 lunar-python，随包分发，无需安装） |")
 print("| 网络需求 | 无 |")
 print()
 

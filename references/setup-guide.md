@@ -2,6 +2,8 @@
 
 本 Skill 只有一个必需依赖：**Python 3.10 及以上运行时**，依赖 id 为 `python-runtime`。无账号、无 Token、无 Key、无网络请求。
 
+择日（`zeri`）所用的农历、宜忌、吉神凶煞数据，来自**随包分发**的内置历法库 `lunar-python`（6tail，MIT 协议），位于 `assets/vendor/lunar_python/`。它是纯 Python 实现，**不需要 pip 安装、不联网**，包完整即可用。第三方许可证见 `references/LICENSE-lunar-python.md`。
+
 ## 检查当前状态
 
 ```bash
@@ -35,7 +37,7 @@ python --version
 python scripts/yijing.py env
 ```
 
-应输出 Python 版本、三个数据文件均存在、64 卦八宫归属全部匹配、结论 `ready`。
+应输出 Python 版本、四个数据文件均存在、内置历法库存在、64 卦八宫归属全部匹配、结论 `ready`。
 
 ## 升级与卸载
 
@@ -43,11 +45,13 @@ python scripts/yijing.py env
 |---|---|
 | 升级 Python | 从官方下载页安装新版本，无需改动本 Skill |
 | 轮换 | 升级后重跑 `scripts/check_environment.py` 确认版本 |
-| 撤销 | 卸载 Python 或直接删除本 Skill 所在目录即可，无凭据残留、无系统配置改动 |
+| 撤销 | 卸载 Python 或删除 `~/.workbuddy/skills/yijing/` 目录即可，无凭据残留、无系统配置改动 |
 
 ## 数据文件缺失
 
 若 `env` 报告某个 JSON 缺失或解析失败，说明包不完整。重新安装 Skill 包覆盖即可，不要手工编辑数据文件——手工改动会导致八宫归属校验失败。
+
+若 `env` 报告「内置历法库 lunar-python 缺失」，说明 `assets/vendor/lunar_python/` 未随包带过来。同样重新安装 Skill 包即可；此时除 `zeri` 外的指令仍可正常使用。
 
 ## 已知限制（不是故障）
 
@@ -57,3 +61,5 @@ python scripts/yijing.py env
 - 不内置公历转农历，时间起卦需自行提供农历年月日
 - 不含真太阳时校正与晚子时换日处理
 - 不含六爻旺衰、旬空、月破、用神选取等进阶判断
+- 择日结果不含八字合婚，宜忌与神煞属通书通例，各地取舍不一
+- `zeri --weekday workday` 仅按周一至周五判断，不识别法定节假日

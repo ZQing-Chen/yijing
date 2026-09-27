@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """易经推演引擎：起卦、纳甲装卦、干支换算、五行与类象查询。
 
-纯 Python 标准库实现，无网络、无子进程、不写文件、不读取用户个人数据。
+纯 Python 实现，择日模块内置 lunar-python（MIT 协议，随包分发）。
+无网络、无子进程、不写文件、不读取用户个人数据。
 """
 
 import argparse
@@ -1081,6 +1082,228 @@ def cmd_relation(args):
         print("| %s | %s | %s |" % (cat, k, v))
 
 
+# ---------------------------------------------------------------- 择日
+# 宜忌、吉神凶煞、农历日期依赖内置历法库 lunar-python（MIT），不联网、不写文件。
+
+# 三娘煞：农历初三、初七、十三、十八、廿二、廿七
+SANNIANG_DAYS = (3, 7, 13, 18, 22, 27)
+# 杨公忌：农历月 -> 日（正月十三…腊月十九，共十三日）
+YANGGONG_DAYS = {
+    1: (13,), 2: (11,), 3: (9,), 4: (7,), 5: (5,), 6: (3,),
+    7: (1, 29), 8: (27,), 9: (25,), 10: (23,), 11: (21,), 12: (19,),
+}
+ZHI_CHONG = {"子": "午", "丑": "未", "寅": "申", "卯": "酉", "辰": "戌", "巳": "亥",
+             "午": "子", "未": "丑", "申": "寅", "酉": "卯", "戌": "辰", "亥": "巳"}
+ZHI_WUXING = {"亥": "水", "子": "水", "寅": "木", "卯": "木", "巳": "火", "午": "火",
+              "申": "金", "酉": "金", "辰": "土", "戌": "土", "丑": "土", "未": "土"}
+ZERI_HIGH = ("天德", "月德")
+ZERI_MID = ("天德合", "月德合", "天喜", "天赦", "不将")
+ZERI_LOW = ("三合", "六合", "母仓", "五富", "五合", "临日", "福生", "生气", "续世",
+            "天后", "时阳", "时德", "民日", "四相", "阳德", "阴德", "天仓", "金堂",
+            "敬安", "普护", "解神", "益后", "青龙", "明堂", "金匮", "玉堂", "司命",
+            "宝光", "鸣吠", "鸣吠对")
+WEEKDAY_CN = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
+
+def lunar_lib():
+    """加载随包分发的内置历法库 lunar-python（MIT 协议）。"""
+    vendor = BASE_DIR / "assets" / "vendor"
+    if str(vendor) not in sys.path:
+        sys.path.insert(0, str(vendor))
+    try:
+        from lunar_python import Lunar, Solar
+        return Lunar, Solar
+    except Exception as exc:
+        fail("内置历法库不可用（%s）。请检查 Skill 包完整性：assets/vendor/lunar_python/" % exc)
+
+
+def _lv(obj, name, default=None):
+    """读取历法库属性，接口缺失时返回默认值，避免整条指令崩溃。"""
+    try:
+        return getattr(obj, name)()
+    except Exception:
+        return default
+
+
+def _parse_date(text, label):
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError:
+        fail("%s 日期格式需为 YYYY-MM-DD，收到 %s。" % (label, text))
+
+
+def _split_arg(text):
+    if not text:
+        return []
+    return [x.strip() for x in text.replace("，", ",").split(",") if x.strip()]
+
+
+def zeri_scan(d0, d1, purposes, shengxiao, avoid_zhi, prefer_zhi, weekday):
+    """扫描日期区间，返回按评分降序的候选日列表。"""
+    Lunar, Solar = lunar_lib()
+    rows = []
+    cur = d0
+    while cur <= d1:
+        try:
+            lu = Lunar.fromSolar(Solar.fromDate(datetime(cur.year, cur.month, cur.day)))
+        except Exception:
+            cur = cur.fromordinal(cur.toordinal() + 1)
+            continue
+
+        yi = _lv(lu, "getDayYi", []) or []
+        ji = _lv(lu, "getDayJi", []) or []
+        hit = [p for p in purposes if p in yi]
+        bad = [p for p in purposes if p in ji]
+
+        if hit and not bad:
+            js = _lv(lu, "getDayJiShen", []) or []
+            xs = _lv(lu, "getDayXiongSha", []) or []
+            dg = _lv(lu, "getDayInGanZhi", "") or ""
+            yg = _lv(lu, "getYearInGanZhi", "") or ""
+            mg = _lv(lu, "getMonthInGanZhi", "") or ""
+            chong = _lv(lu, "getDayChongDesc", "") or ""
+            nayin = _lv(lu, "getDayNaYin", "") or ""
+            lm = _lv(lu, "getMonth", 0) or 0
+            ld = _lv(lu, "getDay", 0) or 0
+            lmc = _lv(lu, "getMonthInChinese", "") or ""
+            ldc = _lv(lu, "getDayInChinese", "") or ""
+
+            dz = dg[1] if len(dg) > 1 else ""
+            yz = yg[1] if len(yg) > 1 else ""
+            mz = mg[1] if len(mg) > 1 else ""
+            am = abs(lm)
+
+            # 硬排除：三娘煞、杨公忌、月破、岁破、冲生肖
+            skip = False
+            if ld in SANNIANG_DAYS:
+                skip = True
+            elif ld in YANGGONG_DAYS.get(am, ()):
+                skip = True
+            elif dz and ZHI_CHONG.get(mz) == dz:
+                skip = True
+            elif dz and ZHI_CHONG.get(yz) == dz:
+                skip = True
+            else:
+                for sx in shengxiao:
+                    if sx and sx in chong:
+                        skip = True
+                        break
+
+            if not skip:
+                if weekday == "workday" and cur.weekday() >= 5:
+                    skip = True
+                elif weekday == "weekend" and cur.weekday() < 5:
+                    skip = True
+
+            if not skip:
+                score = 4 * len(hit)
+                for k in ZERI_HIGH:
+                    if k in js:
+                        score += 8
+                for k in ZERI_MID:
+                    if k in js:
+                        score += 4
+                for k in ZERI_LOW:
+                    if k in js:
+                        score += 1
+                score -= 2 * len(xs)
+                if dz in prefer_zhi:
+                    score += 4
+                if dz in avoid_zhi:
+                    score -= 3
+
+                times = []
+                for t in (_lv(lu, "getTimes", []) or []):
+                    tz = _lv(t, "getZhi", "") or ""
+                    ty = _lv(t, "getYi", []) or []
+                    tj = _lv(t, "getJi", []) or []
+                    if not tz or ("诸事不宜" in tj) or ("诸事不宜" in ty):
+                        continue
+                    if tz not in times and any(p in ty for p in purposes):
+                        times.append(tz)
+
+                rows.append({
+                    "date": cur, "gz": dg, "nayin": nayin, "chong": chong,
+                    "lunar": "%s%s%s" % ("闰" if lm < 0 else "", lmc, ldc),
+                    "score": score, "js": js, "xs": xs, "yi": yi, "ji": ji,
+                    "times": times, "dz": dz, "wu": ZHI_WUXING.get(dz, ""),
+                    "am": any(x in ("辰", "巳", "午") for x in times),
+                })
+
+        cur = cur.fromordinal(cur.toordinal() + 1)
+
+    rows.sort(key=lambda r: (-r["score"], r["date"]))
+    return rows
+
+
+def cmd_zeri(args):
+    if args.date:
+        d0 = _parse_date(args.date, "起始")
+        days = args.days if args.days else 90
+        if days < 1 or days > 3660:
+            fail("--days 需在 1 到 3660 之间，收到 %d。" % days)
+        d1 = d0.fromordinal(d0.toordinal() + days - 1)
+    elif args.start:
+        d0 = _parse_date(args.start, "起始")
+        d1 = _parse_date(args.end, "结束") if args.end else d0.fromordinal(d0.toordinal() + 89)
+    else:
+        fail("请给出 --date 或 --start。")
+        return
+    if d1 < d0:
+        fail("结束日期 %s 早于起始日期 %s。" % (d1, d0))
+    if (d1 - d0).days > 3660:
+        fail("区间过长（%d 天），请缩短到 3660 天以内。" % (d1 - d0).days)
+
+    purposes = _split_arg(args.purpose) or ["嫁娶"]
+    shengxiao = _split_arg(args.shengxiao)
+    avoid_zhi = _split_arg(args.avoid_zhi)
+    prefer_zhi = _split_arg(args.prefer_zhi)
+    weekday = args.weekday or "any"
+    top = args.top if args.top else 8
+
+    rows = zeri_scan(d0, d1, purposes, shengxiao, avoid_zhi, prefer_zhi, weekday)
+
+    print("## 择日：%s 至 %s · %s" % (d0, d1, "、".join(purposes)))
+    print()
+    if not rows:
+        print("**结论**：该区间内没有同时满足宜忌与避煞条件的日子。")
+        print()
+        print("可尝试放宽条件：扩大日期区间、去掉 --shengxiao/--avoid-zhi、"
+              "或改用 --weekday any。")
+        print("常见事项名：嫁娶、纳采、订盟、移徙、入宅、开市、出行、动土、安葬、祈福。")
+        print()
+        warn("本指令只做通书宜忌与神煞筛选，不含八字合婚、格局与用神判断。")
+        return
+
+    shown = rows[:top]
+    best = shown[0]
+    print("**结论**：共 %d 个候选，首选 %s（%s，%s日，得分 %d）。" % (
+        len(rows), best["date"], WEEKDAY_CN[best["date"].weekday()], best["gz"], best["score"]))
+    print()
+    print("| 排名 | 公历 | 星期 | 农历 | 日柱 | 支五行 | 冲 | 吉神 | 凶煞 | 吉时 | 分 |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|")
+    for i, r in enumerate(shown, 1):
+        d = r["date"]
+        print("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %d |" % (
+            i, d, WEEKDAY_CN[d.weekday()], r["lunar"], r["gz"], r["wu"],
+            r["chong"] or "-", "、".join(r["js"][:6]) or "-",
+            "、".join(r["xs"][:5]) or "-",
+            "、".join(r["times"][:6]) or "无", r["score"]))
+    print()
+    for i, r in enumerate(shown[:3], 1):
+        print("**第 %d 候选 %s**：宜 %s；忌 %s。%s" % (
+            i, r["date"], "、".join(r["yi"][:10]) or "无",
+            "、".join(r["ji"][:6]) or "无",
+            "上午（辰巳午）有吉时。" if r["am"] else "上午无吉时，宜午后办理。"))
+    print()
+    print("已剔除：三娘煞、杨公忌、月破、岁破%s%s。" % (
+        "、冲生肖（%s）" % "、".join(shengxiao) if shengxiao else "",
+        "、日支 %s" % "、".join(avoid_zhi) if avoid_zhi else ""))
+    warn("宜忌与神煞取自内置历法库 lunar-python（MIT），属通书通例，非八字合婚。"
+         "表中时辰为传统地支时辰，按地方真太阳时计，实际到场请按北京时间顺延约 40-70 分钟。"
+         "2027 年及以后的法定节假日安排以国务院公布为准。")
+
+
 def cmd_env(args):
     print("## 环境自检")
     print()
@@ -1093,7 +1316,10 @@ def cmd_env(args):
         exists = p.exists()
         ok = ok and exists
         print("| 数据文件 %s | %s |" % (f, "存在" if exists else "缺失"))
-    print("| 外部依赖 | 无（纯标准库） |")
+    vdir = BASE_DIR / "assets" / "vendor" / "lunar_python"
+    vok = (vdir / "Lunar.py").exists()
+    ok = ok and vok
+    print("| 内置历法库 lunar-python | %s |" % ("存在" if vok else "缺失"))
     print("| 网络访问 | 无 |")
     print()
     if ok:
@@ -1169,6 +1395,23 @@ def main():
     r = sub.add_parser("relation", help="干支冲合刑害查询")
     r.add_argument("items", nargs="+", help="1-3 个地支或天干")
     r.set_defaults(func=cmd_relation)
+
+    zr = sub.add_parser("zeri", help="择日：按通书宜忌与吉神凶煞筛选吉日")
+    zr.add_argument("--date", help="起始日期 YYYY-MM-DD，配合 --days 使用")
+    zr.add_argument("--days", type=int, help="自 --date 起的天数，默认 90")
+    zr.add_argument("--start", help="起始日期 YYYY-MM-DD")
+    zr.add_argument("--end", help="结束日期 YYYY-MM-DD，默认起始后 90 天")
+    zr.add_argument("--purpose", default="嫁娶",
+                    help="事项，逗号分隔，如 嫁娶 / 纳采,订盟 / 移徙，默认 嫁娶")
+    zr.add_argument("--shengxiao", help="避冲生肖，逗号分隔，如 牛,鼠")
+    zr.add_argument("--avoid-zhi",
+                    help="避冲地支（如双方日支），逗号分隔，如 酉,寅")
+    zr.add_argument("--prefer-zhi",
+                    help="偏好地支（如用神当令之支），逗号分隔，如 亥,子")
+    zr.add_argument("--weekday", choices=("any", "workday", "weekend"),
+                    default="any", help="星期过滤：any 不限 / workday 工作日 / weekend 周末")
+    zr.add_argument("--top", type=int, default=8, help="输出条数，默认 8")
+    zr.set_defaults(func=cmd_zeri)
 
     e = sub.add_parser("env", help="环境自检")
     e.set_defaults(func=cmd_env)

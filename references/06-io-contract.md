@@ -8,7 +8,7 @@
 python scripts/yijing.py <指令> [参数] [选项]
 ```
 
-工作目录为 Skill 根目录。脚本只读 `assets/data/` 下的 JSON，不写文件、不联网、不读取用户个人数据。
+工作目录为 Skill 根目录。脚本只读 `assets/data/` 下的 JSON，并按需导入 `scripts/vendor/lunar_python/` 的内置历法库；不写文件、不联网、不读取用户个人数据。
 
 **输出格式（全部指令一致）**
 
@@ -41,7 +41,25 @@ python scripts/yijing.py <指令> [参数] [选项]
 | `xiang` | 八卦名或卦名 | 八卦类象全表，或重卦上下卦类象对照 |
 | `relation` | 1-3 个地支或天干 | 冲合刑害破、五合 |
 | `bazi` | `--date` YYYY-MM-DD、`--hour` 时辰或 0-23、`--gender` 男/女，可选 `--city`、`--liunian` | 四柱、十神、强弱打分、大运小运、神煞、格局、用神、流年 |
+| `zeri` | `--date` + `--days`，或 `--start` + `--end`；`--purpose`、`--shengxiao`、`--avoid-zhi`、`--prefer-zhi`、`--weekday`、`--top` | 择日：候选日表（农历、日柱、冲、吉神、凶煞、吉时、评分） |
 | `env` | 无 | 环境自检，输出 ready / needs_setup |
+
+### `zeri` 参数明细
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `--date` | 二选一 | 起始日期 YYYY-MM-DD，配合 `--days`（默认 90） |
+| `--start` / `--end` | 二选一 | 起止日期；`--end` 省略时为起始后 90 天 |
+| `--purpose` | 否 | 事项，逗号分隔，默认 `嫁娶`。命中当日「宜」中任一项即入选 |
+| `--shengxiao` | 否 | 避冲生肖，逗号分隔，硬排除 |
+| `--avoid-zhi` | 否 | 避冲地支，逗号分隔，−3 分 |
+| `--prefer-zhi` | 否 | 偏好地支，逗号分隔，+4 分 |
+| `--weekday` | 否 | `any` / `workday` / `weekend`，默认 `any` |
+| `--top` | 否 | 输出条数，默认 8 |
+
+区间上限 3660 天。日期格式错误、区间倒置、区间超长均退出码 2。区间内无候选时退出码 0，输出空结果说明与放宽建议。
+
+筛选规则与评分权重见 `references/08-zeri.md`。
 
 ## 三、实测输出样例
 

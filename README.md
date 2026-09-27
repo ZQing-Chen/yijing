@@ -1,8 +1,10 @@
 # yijing — 易经八卦与子平八字 Agent Skill
 
-一个**自包含、零依赖**的《易经》知识体系与推演工具包，供 Claude Code、WorkBuddy 及任意支持 SKILL.md 约定的 Agent 直接加载。
+一个**自包含、免安装**的《易经》知识体系与推演工具包，供 Claude Code、WorkBuddy 及任意支持 SKILL.md 约定的 Agent 直接加载。
 
-卦爻辞原文、六十甲子这类冷数据以 JSON 落盘、按需读取（不占上下文）；推演规则以 Markdown 供阅读；所有计算由**纯 Python 标准库**脚本完成，结果确定、可复现、可校验——不靠模型临场回忆，不联网、不写文件。
+卦爻辞原文、六十甲子这类冷数据以 JSON 落盘、按需读取（不占上下文）；推演规则以 Markdown 供阅读；所有计算由 Python 脚本完成，结果确定、可复现、可校验——不靠模型临场回忆，不联网、不写文件。
+
+择日所用的农历、宜忌、吉神凶煞数据来自**随包分发**的内置历法库 [lunar-python](https://github.com/6tail/lunar-python)（MIT 协议），位于 `assets/vendor/`，纯 Python 实现，**无需 pip 安装**。
 
 ## 用途
 
@@ -14,6 +16,7 @@
 | 干支换算 | 公历日期 → 四柱干支、六十甲子、纳音、藏干、十二长生 |
 | 五行与类象 | 生克制化、旺相休囚死、八卦万物类象、地支冲合刑害 |
 | 子平八字 | 四柱十神、大运小运起运、日主强弱、神煞、格局、用神喜忌、流年作用 |
+| **择日** | 按通书宜忌与吉神凶煞筛选吉日，避开三娘煞、杨公忌、月破岁破与生肖相冲 |
 
 ## 加载方式
 
@@ -66,9 +69,16 @@ python scripts/yijing.py xiang 离                               # 八卦类象
 python scripts/yijing.py relation 申 子 辰                      # 地支冲合刑害
 python scripts/yijing.py bazi --date 1997-02-12 --hour 丑 \
         --gender 男 --liunian 2026                              # 八字排盘批命
+
+# 择日：2027 年内宜嫁娶的工作日，避开冲牛冲鼠
+python scripts/yijing.py zeri --start 2027-01-01 --end 2027-12-31 \
+        --purpose 嫁娶 --shengxiao 牛,鼠 --weekday workday --top 5
+
+# 择日：领证对应「纳采、订盟」，婚礼对应「嫁娶」
+python scripts/yijing.py zeri --date 2026-10-01 --days 92 --purpose 纳采,订盟
 ```
 
-自然语言触发（由 Agent 自动路由）：占一卦、起卦、摇卦、金钱卦、梅花易数、体用、纳甲、排盘、六爻、世应六亲、五行生克、六十甲子、纳音、干支冲合刑害、先天八卦方位、八字、批命、十神、大运、起运、流年、用神喜忌、身强身弱、神煞。
+自然语言触发（由 Agent 自动路由）：占一卦、起卦、摇卦、金钱卦、梅花易数、体用、纳甲、排盘、六爻、世应六亲、五行生克、六十甲子、纳音、干支冲合刑害、先天八卦方位、八字、批命、十神、大运、起运、流年、用神喜忌、身强身弱、神煞、择日、择吉、黄道吉日、领证吉日、结婚日子、宜嫁娶。
 
 ## 目录结构
 
@@ -84,14 +94,18 @@ yijing/
 │   ├── ganzhi.json               # 六十甲子、纳音、藏干、十二长生
 │   ├── base.json                 # 八卦、京房八宫纳甲、五行、干支关系
 │   └── bazi.json                 # 十神、神煞、藏干透出、强弱权重、格局调候
+├── assets/vendor/
+│   └── lunar_python/             # 内置历法库（MIT，6tail），择日数据来源，无需安装
 ├── references/
 │   ├── 01-bagua.md               # 八卦卦形、先天/后天方位、万物类象
 │   ├── 02-wuxing.md              # 五行生克制化、旺相休囚死、十二长生
 │   ├── 03-ganzhi.md              # 天干地支、藏干、冲合刑害、六十甲子纳音
 │   ├── 04-najia-liuyao.md        # 京房八宫、纳甲纳支、世应六亲、装卦步骤
-│   ├── 05-meihua.md              # 梅花易数起卦、体用关系、金钱卦
+│   ├── 05-meihua.md              # 梅花易数、体用、金钱卦、硬币替代法、静卦取用
 │   ├── 06-io-contract.md         # 调用契约、输入输出格式、数据文件说明
 │   ├── 07-bazi.md                # 子平八字：十神、大运、神煞、格局、用神
+│   ├── 08-zeri.md                # 择日：宜忌神煞筛选规则、评分权重、易错点
+│   ├── LICENSE-lunar-python.md   # 第三方许可证（lunar-python，MIT）
 │   └── setup-guide.md            # 环境配置指南
 └── scripts/
     ├── yijing.py                 # 确定性计算引擎（纯标准库）
@@ -117,7 +131,10 @@ yijing/
 | 八字起运岁数 | 约 ±0.4 岁 |
 | 真太阳时、晚子时换日、交节精确时刻 | 未实现 |
 | 农历公历互转 | 未内置（时间起卦需自行提供农历） |
+| 择日 | 仅通书日课筛选，**不含八字合婚**；宜忌属通例，各地取舍不一；`--weekday workday` 不识别法定节假日 |
 
 ## 许可
 
-MIT，详见 [LICENSE](LICENSE)。
+本仓库内容以 MIT 许可发布，详见 [LICENSE](LICENSE)。
+
+内置的 `assets/vendor/lunar_python/` 为第三方项目 [lunar-python](https://github.com/6tail/lunar-python)（Copyright 2020 6tail），同样以 MIT 许可分发，其许可证全文见 [references/LICENSE-lunar-python.md](references/LICENSE-lunar-python.md)。
